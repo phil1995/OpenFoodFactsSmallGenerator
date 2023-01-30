@@ -14,21 +14,13 @@ struct ProductExtractor {
 			try customAutoreleasepool {
 				line = streamReader.nextLine()
 				guard let data = line?.data(using: .utf8) else {
-					#if !os(Linux)
 					return
-					#else
-					continue
-					#endif
 				}
 				let product: JSONProduct
 				do {
 					product = try decoder.decode(JSONProduct.self, from: data)
 				} catch {
-					#if !os(Linux)
 					return
-					#else
-					continue
-					#endif
 				}
 				count += 1
 				let productLanguages = product.names.keys
