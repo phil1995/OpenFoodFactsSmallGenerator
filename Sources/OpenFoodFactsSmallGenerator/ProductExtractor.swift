@@ -11,16 +11,24 @@ struct ProductExtractor {
 		var line: String?
 		var count = 0
 		repeat {
-			try autoreleasepool {
+			try customAutoreleasepool {
 				line = streamReader.nextLine()
 				guard let data = line?.data(using: .utf8) else {
+					#if !os(Linux)
 					return
+					#else
+					continue
+					#endif
 				}
 				let product: JSONProduct
 				do {
 					product = try decoder.decode(JSONProduct.self, from: data)
 				} catch {
+					#if !os(Linux)
 					return
+					#else
+					continue
+					#endif
 				}
 				count += 1
 				let productLanguages = product.names.keys
@@ -38,10 +46,19 @@ struct ProductExtractor {
 					print("Processed products: \(count)")
 				}
 			}
+			
 		} while line != nil
 		fileHandle.write("]".data(using: .utf8)!)
 		try fileHandle.close()
 	}
+}
+
+public func customAutoreleasepool<Result>(invoking body: () throws -> Result) rethrows -> Result {
+	#if !os(Linux)
+	return try autoreleasepool(invoking: body)
+	#else
+	return try body()
+	#endif
 }
 
 struct BaseNutriments {
