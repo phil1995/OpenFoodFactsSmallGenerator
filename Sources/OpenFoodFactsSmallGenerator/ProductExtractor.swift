@@ -2,13 +2,14 @@ import Foundation
 
 struct ProductExtractor {
 
-	func start(source: URL, target: URL, languages: [JSONProduct.Language] = JSONProduct.Language.allCases) async throws {
+	func start(source: URL, target: URL, languages: [JSONProduct.Language] = JSONProduct.Language.allCases, showProgress: Bool = true) async throws {
 		let streamReader = try StreamReader(url: source)
 		try "[".write(to: target, atomically: false, encoding: .utf8)
 		let fileHandle = try FileHandle(forWritingTo: target)
 		let decoder = JSONDecoder()
 		let encoder = JSONEncoder()
 		var line: String?
+		var count = 0
 		repeat {
 			try autoreleasepool {
 				line = streamReader.nextLine()
@@ -21,6 +22,7 @@ struct ProductExtractor {
 				} catch {
 					return
 				}
+				count += 1
 				let productLanguages = product.names.keys
 				for (language, name) in product.names where languages.contains(language) {
 					let smallProduct = SmallProduct(name: name,
@@ -31,6 +33,9 @@ struct ProductExtractor {
 													serving: product.servingSize?.rawValue)
 					fileHandle.write(try encoder.encode(smallProduct))
 					fileHandle.write("\n".data(using: .utf8)!)
+				}
+				if showProgress && count % 10000 == 0 {
+					print("Processed products: \(count)")
 				}
 			}
 		} while line != nil
