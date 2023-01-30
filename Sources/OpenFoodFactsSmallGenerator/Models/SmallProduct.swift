@@ -2,6 +2,7 @@ import Foundation
 
 struct SmallProduct: Codable {
 	let name: String
+	let brand: String?
 	let barcode: String
 	let energy: Int
 	let quantity: String?
@@ -10,6 +11,7 @@ struct SmallProduct: Codable {
 extension SmallProduct {
 	init(from product: Product) {
 		self.init(name: product.name,
+				  brand: product.brand,
 				  barcode: product.barcode,
 				  energy: Int(product.energyKcal),
 				  quantity: product.quantity?.rawValue,

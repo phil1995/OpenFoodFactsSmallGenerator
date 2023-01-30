@@ -2,6 +2,7 @@ import Foundation
 
 struct Product: Decodable {
 	let name: String
+	let brand: String?
 	let barcode: String
 	let energyKcal: Double
 	var quantity: Quantity?
@@ -18,6 +19,13 @@ struct Product: Decodable {
 		}
 		self.name = name
 		self.barcode = try container.decode(String.self, forKey: .barcode)
+		
+		if let brandsStr = try container.decodeIfPresent(String.self, forKey: .brands) {
+			self.brand = brandsStr.components(separatedBy: ",").map { $0.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) }.first
+		} else {
+			self.brand = nil
+		}
+		
 		let energyKey = try DynamicKey.generate(from: "\(BaseNutrimentsKey.energy)_100g")
 		
 		self.energyKcal = try JSONDecoderHelper.parseJSONKeyToDouble(container: dynamicKeyContainer, forKey: energyKey)
@@ -49,6 +57,7 @@ struct Product: Decodable {
 	
 	enum CodingKeys: String, CodingKey {
 		case names = "product_name"
+		case brands
 		case languageCodes = "languages_codes"
 		case barcode = "code"
 		case nutriments
