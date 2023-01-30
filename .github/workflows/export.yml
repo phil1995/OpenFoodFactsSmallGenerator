@@ -25,12 +25,16 @@ jobs:
             sha256sum
             openfoodfacts-products.jsonl.gz 
           key: ${{ runner.os }}-${{ steps.get-checksum.outputs.sha256sum }}
+      - name: Download JSONL
+        run:
+          wget -nc https://static.openfoodfacts.org/data/openfoodfacts-products.jsonl.gz 2>/tmp/err.log || cat /tmp/err.log; rm /tmp/err.log
+      - name: Unpack
+        run: gunzip openfoodfacts-products.jsonl.gz
       - name: Build
         run: |
           echo "Free space:"
           df -h
-          wget -nc https://static.openfoodfacts.org/data/openfoodfacts-products.jsonl.gz 2>/tmp/err.log || cat /tmp/err.log; rm /tmp/err.log
-          gunzip openfoodfacts-products.jsonl.gz
+          ls .
           swift run
           du -h german.json
           echo "Finished importing"
