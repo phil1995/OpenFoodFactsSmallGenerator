@@ -29,7 +29,7 @@ jobs:
         run: |
           echo "Free space:"
           df -h
-          wget https://static.openfoodfacts.org/data/openfoodfacts-products.jsonl.gz 2>/tmp/err.log || cat /tmp/err.log; rm /tmp/err.log
+          wget -nc https://static.openfoodfacts.org/data/openfoodfacts-products.jsonl.gz 2>/tmp/err.log || cat /tmp/err.log; rm /tmp/err.log
           gunzip openfoodfacts-products.jsonl.gz
           swift run
           du -h german.json
