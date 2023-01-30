@@ -95,6 +95,7 @@ class StreamReader {
 	
 	init(url: URL, delimiter: String = "\n", encoding: String.Encoding = .utf8, chunkSize: Int = 4096) throws
 	{
+		print("StreamReader init path:\(url.path)")
 		let fileHandle = try FileHandle(forReadingFrom: url)
 		self.fileHandle = fileHandle
 		self.chunkSize = chunkSize
