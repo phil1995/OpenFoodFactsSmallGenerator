@@ -1,0 +1,36 @@
+name: Experiments
+on: push
+
+jobs:
+  build:
+    name: Build my artifact
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 512
+          swap-size-mb: 1024
+          remove-dotnet: 'true'
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Retrieve Checksum
+        id: get-checksum
+        run: |
+          wget https://static.openfoodfacts.org/data/sha256sum
+          echo "sha256sum=$(cat sha256sum)" >> $GITHUB_OUTPUT
+      - uses: actions/cache@v3
+        with:
+          path: |
+            sha256sum
+            openfoodfacts-products.jsonl.gz 
+          key: ${{ runner.os }}-${{ steps.get-checksum.outputs.sha256sum }}
+      - name: Build
+        run: |
+          echo "Free space:"
+          df -h
+          wget https://static.openfoodfacts.org/data/openfoodfacts-products.jsonl.gz 2>/tmp/err.log || cat /tmp/err.log; rm /tmp/err.log
+          gunzip openfoodfacts-products.jsonl.gz
+          swift run
+          du -h german.json
+          echo "Finished importing"
