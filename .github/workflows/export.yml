@@ -1,4 +1,4 @@
-name: Experiments
+name: Export
 on: push
 
 jobs:
@@ -23,18 +23,25 @@ jobs:
         with:
           path: |
             sha256sum
-            openfoodfacts-products.jsonl.gz 
+            openfoodfacts-products.jsonl.gz
           key: ${{ runner.os }}-${{ steps.get-checksum.outputs.sha256sum }}
       - name: Download JSONL
         run:
           wget -nc https://static.openfoodfacts.org/data/openfoodfacts-products.jsonl.gz 2>/tmp/err.log || cat /tmp/err.log; rm /tmp/err.log
       - name: Unpack
         run: gunzip openfoodfacts-products.jsonl.gz
-      - name: Build
+      - name: Create Small Product JSON files
         run: |
           echo "Free space:"
           df -h
-          ls .
+          mkdir public
           swift run
-          du -h german.json
-          echo "Finished importing"
+          cd public
+          ls -lh .
+      - name: Publish to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: ${{ secrets.CLOUDFLARE_PROJECT_NAME }}
+          directory: public
