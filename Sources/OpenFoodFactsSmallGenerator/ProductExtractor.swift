@@ -4,8 +4,7 @@ struct ProductExtractor {
 
 	func start(source: URL, target: URL, languages: [JSONProduct.Language] = JSONProduct.Language.allCases, showProgress: Bool = true) async throws {
 		let streamReader = try StreamReader(url: source)
-		try "[".write(to: target, atomically: false, encoding: .utf8)
-		let fileHandle = try FileHandle(forWritingTo: target)
+		let fileWriters = createFileWriters(for: languages, outputDirectory: target, filePrefix: "small_products")
 		let decoder = JSONDecoder()
 		let encoder = JSONEncoder()
 		var line: String?
@@ -23,7 +22,6 @@ struct ProductExtractor {
 					return
 				}
 				count += 1
-				let productLanguages = product.names.keys
 				for (language, name) in product.names where languages.contains(language) {
 					let smallProduct = SmallProduct(name: name,
 													brand: product.brand,
@@ -31,8 +29,8 @@ struct ProductExtractor {
 													energy: Int(product.nutriments.energyKcal),
 													quantity: product.quantity?.rawValue,
 													serving: product.servingSize?.rawValue)
-					fileHandle.write(try encoder.encode(smallProduct))
-					fileHandle.write("\n".data(using: .utf8)!)
+					let fileWriter = fileWriters[language]
+					try fileWriter?.writeLine(data: try encoder.encode(smallProduct))
 				}
 				if showProgress && count % 10000 == 0 {
 					print("Processed products: \(count)")
@@ -40,9 +38,58 @@ struct ProductExtractor {
 			}
 			
 		} while line != nil
-		fileHandle.write("]".data(using: .utf8)!)
-		try fileHandle.close()
+		var packages = [LanguagePackage]()
+		for (language, fileWriter) in fileWriters {
+			let createdFiles: [URL]
+			do {
+				createdFiles = try fileWriter.finish()
+			} catch {
+				print("Closing FileWriter failed with error: \(error)")
+				continue
+			}
+			let package = LanguagePackage(language: language, files: createdFiles.map(\.lastPathComponent))
+			packages.append(package)
+		}
+		let overview = CreatedFilesOverview(packages: packages)
+		do {
+			let data = try JSONEncoder().encode(overview)
+			try data.write(to: target.appendingPathComponent("overview.json"))
+		} catch {
+			print("Overview creation failed with error: \(error)")
+		}
 	}
+	
+	func createFileHandles(for languages: [JSONProduct.Language], outputDirectory: URL, filePrefix: String, initialContent: String = "[") throws -> [JSONProduct.Language : FileHandle] {
+		var fileHandles = [JSONProduct.Language : FileHandle]()
+		for language in languages {
+			let targetURL = outputDirectory.appendingPathComponent("\(filePrefix)\(language.jsonFilenameSuffix).json")
+			try initialContent.write(to: targetURL, atomically: false, encoding: .utf8)
+			fileHandles[language] = try FileHandle(forWritingTo: targetURL)
+		}
+		return fileHandles
+	}
+	
+	func createFileWriters(for languages: [JSONProduct.Language], outputDirectory: URL, filePrefix: String) -> [JSONProduct.Language : FileWriter] {
+		var fileWriters = [JSONProduct.Language : FileWriter]()
+		for language in languages {
+			let maxPartSize = 24 * 1024 * 1024 // 24 MiB
+			let fileWriter = FileWriter(name: "\(filePrefix)\(language.jsonFilenameSuffix)",
+										fileExtension: "json",
+										directory: outputDirectory,
+										maxPartSize: maxPartSize)
+			fileWriters[language] = fileWriter
+		}
+		return fileWriters
+	}
+}
+
+struct LanguagePackage: Codable {
+	let language: JSONProduct.Language
+	let files: [String]
+}
+
+struct CreatedFilesOverview: Codable {
+	let packages: [LanguagePackage]
 }
 
 public func customAutoreleasepool<Result>(invoking body: () throws -> Result) rethrows -> Result {
@@ -135,6 +182,70 @@ class StreamReader {
 	}
 }
 
+class FileWriter {
+	private let name: String
+	private let directory: URL
+	private var files: [URL]
+	private var currentTargetURL: URL
+	private var currentFilePartSize: Int = 0
+	private let maxPartSize: Int
+	private var currentFileHandle: FileHandle?
+	private let fileExtension: String
+	
+	init(name: String, fileExtension: String, directory: URL, maxPartSize: Int) {
+		self.name = name
+		self.fileExtension = fileExtension
+		self.directory = directory
+		self.maxPartSize = maxPartSize
+		self.files = []
+		self.currentTargetURL = Self.createURL(name: name, fileExtension: fileExtension, directory: directory)
+	}
+	
+	func writeLine(data: Data) throws {
+		let newLineData = "\n".data(using: .utf8)!
+		let dataToWrite = newLineData + data
+		if currentFilePartSize + dataToWrite.count >= self.maxPartSize {
+			try currentFileHandle?.close()
+			currentFileHandle = nil
+			var newTargetURL = Self.createURL(name: name, fileExtension: fileExtension, directory: directory, part: files.count)
+			if files.isEmpty {
+				try FileManager.default.moveItem(at: currentTargetURL, to: newTargetURL)
+				currentTargetURL = newTargetURL
+				newTargetURL = Self.createURL(name: name, fileExtension: fileExtension, directory: directory, part: files.count)
+			}
+			files.append(currentTargetURL)
+			currentTargetURL = newTargetURL
+			currentFilePartSize = 0
+		}
+		if let currentFileHandle {
+			currentFileHandle.write(dataToWrite)
+			currentFilePartSize += dataToWrite.count
+		} else {
+			try data.write(to: currentTargetURL)
+			currentFilePartSize += data.count
+		}
+	}
+	
+	func finish() throws -> [URL] {
+		try currentFileHandle?.close()
+		files.append(currentTargetURL)
+		return files
+	}
+	
+	private static func createURL(name: String, fileExtension: String, directory: URL, part: Int? = nil) -> URL {
+		let shouldAddDot = !fileExtension.hasPrefix(".")
+		let optionalDot = shouldAddDot ? "." : ""
+		let partString: String
+		if let part {
+			partString = "-\(part)"
+		} else {
+			partString = ""
+		}
+		return directory.appendingPathComponent("\(name)\(partString)\(optionalDot)\(fileExtension)")
+	}
+	
+}
+
 struct JSONProduct: Decodable {
 	let names: [Language : String]
 	let brand: String?
@@ -210,7 +321,7 @@ struct JSONProduct: Decodable {
 		case carbohydrates
 	}
 	
-	enum Language: CaseIterable {
+	enum Language: CaseIterable, Codable {
 		case english
 		case german
 		
@@ -220,6 +331,15 @@ struct JSONProduct: Decodable {
 				return "_de"
 			case .english:
 				return ""
+			}
+		}
+		
+		var jsonFilenameSuffix: String {
+			switch self {
+			case .german:
+				return "_de"
+			case .english:
+				return "_en"
 			}
 		}
 	}
