@@ -47,12 +47,14 @@ struct ProductExtractor {
 				print("Closing FileWriter failed with error: \(error)")
 				continue
 			}
+			guard !createdFiles.isEmpty else {
+				continue
+			}
 			let package = LanguagePackage(language: language, files: createdFiles.map(\.lastPathComponent))
 			packages.append(package)
 		}
-		let overview = CreatedFilesOverview(packages: packages)
 		do {
-			let data = try JSONEncoder().encode(overview)
+			let data = try JSONEncoder().encode(packages)
 			try data.write(to: target.appendingPathComponent("overview.json"))
 		} catch {
 			print("Overview creation failed with error: \(error)")
@@ -86,10 +88,6 @@ struct ProductExtractor {
 struct LanguagePackage: Codable {
 	let language: JSONProduct.Language
 	let files: [String]
-}
-
-struct CreatedFilesOverview: Codable {
-	let packages: [LanguagePackage]
 }
 
 public func customAutoreleasepool<Result>(invoking body: () throws -> Result) rethrows -> Result {
@@ -191,6 +189,7 @@ class FileWriter {
 	private let maxPartSize: Int
 	private var currentFileHandle: FileHandle?
 	private let fileExtension: String
+	private var hasWrittenAtLeastOnce = false
 	
 	init(name: String, fileExtension: String, directory: URL, maxPartSize: Int) {
 		self.name = name
@@ -222,13 +221,17 @@ class FileWriter {
 			currentFilePartSize += dataToWrite.count
 		} else {
 			try data.write(to: currentTargetURL)
+			currentFileHandle = try FileHandle(forWritingTo: currentTargetURL)
 			currentFilePartSize += data.count
+			hasWrittenAtLeastOnce = true
 		}
 	}
 	
 	func finish() throws -> [URL] {
 		try currentFileHandle?.close()
-		files.append(currentTargetURL)
+		if hasWrittenAtLeastOnce {
+			files.append(currentTargetURL)
+		}
 		return files
 	}
 	
@@ -321,7 +324,7 @@ struct JSONProduct: Decodable {
 		case carbohydrates
 	}
 	
-	enum Language: CaseIterable, Codable {
+	enum Language: String, CaseIterable, Codable {
 		case english
 		case german
 		
