@@ -210,7 +210,7 @@ class FileWriter {
 			if files.isEmpty {
 				try FileManager.default.moveItem(at: currentTargetURL, to: newTargetURL)
 				currentTargetURL = newTargetURL
-				newTargetURL = Self.createURL(name: name, fileExtension: fileExtension, directory: directory, part: files.count)
+				newTargetURL = Self.createURL(name: name, fileExtension: fileExtension, directory: directory, part: files.count + 1)
 			}
 			files.append(currentTargetURL)
 			currentTargetURL = newTargetURL
@@ -222,6 +222,7 @@ class FileWriter {
 		} else {
 			try data.write(to: currentTargetURL)
 			currentFileHandle = try FileHandle(forWritingTo: currentTargetURL)
+			currentFileHandle?.seekToEndOfFile()
 			currentFilePartSize += data.count
 			hasWrittenAtLeastOnce = true
 		}
