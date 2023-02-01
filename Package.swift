@@ -18,6 +18,8 @@ let package = Package(
             dependencies: []),
         .testTarget(
             name: "OpenFoodFactsSmallGeneratorTests",
-            dependencies: ["OpenFoodFactsSmallGenerator"]),
+            dependencies: ["OpenFoodFactsSmallGenerator"],
+			resources: [.process("Resources")]
+		),
     ]
 )
