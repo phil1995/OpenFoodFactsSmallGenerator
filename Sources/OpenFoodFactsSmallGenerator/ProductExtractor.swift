@@ -8,20 +8,22 @@ struct ProductExtractor {
 		let decoder = JSONDecoder()
 		let encoder = JSONEncoder()
 		var line: String?
-		var count = 0
+		var extractedProductsCount = 0
+		var processedProductsCount = 0
 		repeat {
 			try customAutoreleasepool {
 				line = streamReader.nextLine()
 				guard let data = line?.data(using: .utf8) else {
 					return
 				}
+				processedProductsCount += 1
 				let product: JSONProduct
 				do {
 					product = try decoder.decode(JSONProduct.self, from: data)
 				} catch {
 					return
 				}
-				count += 1
+				extractedProductsCount += 1
 				for (language, name) in product.names where languages.contains(language) {
 					let smallProduct = SmallProduct(name: name,
 													brand: product.brand,
@@ -32,8 +34,9 @@ struct ProductExtractor {
 					let fileWriter = fileWriters[language]
 					try fileWriter?.writeLine(data: try encoder.encode(smallProduct))
 				}
-				if showProgress && count % 10000 == 0 {
-					print("Processed products: \(count)")
+				if showProgress && extractedProductsCount % 10000 == 0 {
+					print("Processed products: \(processedProductsCount)")
+					print("Extracted products: \(extractedProductsCount)")
 				}
 			}
 			
