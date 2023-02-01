@@ -103,7 +103,7 @@ public func customAutoreleasepool<Result>(invoking body: () throws -> Result) re
 
 struct BaseNutriments {
 	let energyKcal: Int
-	let proteins: Int
+	let proteins: Double
 	let fats: Double
 	let carbohydrates: Double
 }
@@ -117,7 +117,7 @@ extension BaseNutriments: Decodable {
 		let carbohydratesKey = try DynamicKey.generate(from: "\(Key.carbohydrates.rawValue)_100g")
 		
 		energyKcal = try JSONDecoderHelper.parseJSONKeyToInt(container: dynamicKeyContainer, forKey: energyKey)
-		proteins = try JSONDecoderHelper.parseJSONKeyToInt(container: dynamicKeyContainer, forKey: proteinsKey)
+		proteins = try JSONDecoderHelper.parseJSONKeyToDouble(container: dynamicKeyContainer, forKey: proteinsKey)
 		fats = try JSONDecoderHelper.parseJSONKeyToDouble(container: dynamicKeyContainer, forKey: fatKey)
 		carbohydrates = try JSONDecoderHelper.parseJSONKeyToDouble(container: dynamicKeyContainer, forKey: carbohydratesKey)
 	}
