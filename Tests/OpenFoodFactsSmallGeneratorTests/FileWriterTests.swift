@@ -8,50 +8,51 @@ final class FileWriterTests: XCTestCase {
 	let defaultName = "Test"
 	let defaultFileExtension = ".txt"
 	
-    override func setUpWithError() throws {
+	override func setUpWithError() throws {
 		tmpDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
 		try FileManager.default.createDirectory(at: tmpDirectory, withIntermediateDirectories: false)
-		testUnit = FileWriter(name: defaultName, fileExtension: defaultFileExtension, directory: tmpDirectory, maxPartSize: 10 * 1024 * 1024)
-    }
+		testUnit = FileWriter(name: defaultName, fileExtension: defaultFileExtension, directory: tmpDirectory)
+	}
 
-    override func tearDownWithError() throws {
+	override func tearDownWithError() throws {
 		try FileManager.default.removeItem(at: tmpDirectory)
-    }
+	}
 
-    func test_write_singleFile() throws {
+	func test_write_singleFile() throws {
 		try testUnit.writeLine(data: "Test 1".data(using: .utf8)!)
 		try testUnit.writeLine(data: "Test 2".data(using: .utf8)!)
-		let urls = try testUnit.finish()
+		testUnit.finish()
 		let expectedFileURL = tmpDirectory.appendingPathComponent("Test.txt")
-		XCTAssertEqual(urls, [expectedFileURL])
+		XCTAssertEqual(testUnit.url, expectedFileURL)
 		
 		let fileContent = try String(contentsOf: expectedFileURL, encoding: .utf8)
 		
 		XCTAssertEqual(fileContent, "Test 1\nTest 2")
-    }
+	}
 	
-	func test_write_moreThanMaxPartSize_createsMultipleFiles() throws {
+	func test_write_toExistingFile_overwrites_content() throws {
 		// GIVEN
-		// The test unit has been initialized with a small maxPartSize of 10 bytes
-		testUnit = FileWriter(name: defaultName, fileExtension: defaultFileExtension, directory: tmpDirectory, maxPartSize: 10)
+		// Old content has been written
+		testUnit = FileWriter(name: defaultName, fileExtension: defaultFileExtension, directory: tmpDirectory)
+		try testUnit.writeLine(data: "Old content".data(using: .utf8)!)
+		testUnit.finish()
+		let oldFileURL = testUnit.url
 		
 		// WHEN
-		// The test units write to lines each of 6 bytes + new line character
+		// A new FileWriter gets initialized for a existing file
+		testUnit = FileWriter(name: defaultName, fileExtension: defaultFileExtension, directory: tmpDirectory)
+		// And the new FileWriter writes lines to the file
 		try testUnit.writeLine(data: "Test 1".data(using: .utf8)!)
 		try testUnit.writeLine(data: "Test 2".data(using: .utf8)!)
+		let newFileURL = testUnit.url
 		
 		// THEN
-		// The test unit should return two urls on finish calls
-		let urls = try testUnit.finish()
+		// The old and the new url are the same
+		XCTAssertEqual(newFileURL, oldFileURL)
 		
-		let expectedFileURLPart1 = tmpDirectory.appendingPathComponent("Test-0.txt")
-		let expectedFileURLPart2 = tmpDirectory.appendingPathComponent("Test-1.txt")
-		XCTAssertEqual(urls, [expectedFileURLPart1, expectedFileURLPart2])
-		
-		let fileContentPart1 = try String(contentsOf: expectedFileURLPart1, encoding: .utf8)
-		let fileContentPart2 = try String(contentsOf: expectedFileURLPart2, encoding: .utf8)
-		
-		XCTAssertEqual(fileContentPart1, "Test 1")
-		XCTAssertEqual(fileContentPart2, "Test 2")
+		let expectedFileURL = tmpDirectory.appendingPathComponent("Test.txt")
+		// The content has been overwritten with the new content
+		let fileContent = try String(contentsOf: expectedFileURL, encoding: .utf8)
+		XCTAssertEqual(fileContent, "Test 1\nTest 2")
 	}
 }

@@ -43,16 +43,8 @@ struct ProductExtractor {
 		} while line != nil
 		var packages = [LanguagePackage]()
 		for (language, fileWriter) in fileWriters {
-			let createdFiles: [URL]
-			do {
-				createdFiles = try fileWriter.finish()
-			} catch {
-				print("Closing FileWriter failed with error: \(error)")
-				continue
-			}
-			guard !createdFiles.isEmpty else {
-				continue
-			}
+			fileWriter.finish()
+			let createdFiles = [fileWriter.url]
 			let package = LanguagePackage(language: language, files: createdFiles.map(\.lastPathComponent))
 			packages.append(package)
 		}
@@ -74,14 +66,25 @@ struct ProductExtractor {
 		return fileHandles
 	}
 	
-	func createFileWriters(for languages: [JSONProduct.Language], outputDirectory: URL, filePrefix: String) -> [JSONProduct.Language : FileWriter] {
-		var fileWriters = [JSONProduct.Language : FileWriter]()
+	func createChunkedFileWriters(for languages: [JSONProduct.Language], outputDirectory: URL, filePrefix: String) -> [JSONProduct.Language : ChunkedFileWriter] {
+		var fileWriters = [JSONProduct.Language : ChunkedFileWriter]()
 		for language in languages {
 			let maxPartSize = 24 * 1024 * 1024 // 24 MiB
-			let fileWriter = FileWriter(name: "\(filePrefix)\(language.jsonFilenameSuffix)",
+			let fileWriter = ChunkedFileWriter(name: "\(filePrefix)\(language.jsonFilenameSuffix)",
 										fileExtension: "json",
 										directory: outputDirectory,
 										maxPartSize: maxPartSize)
+			fileWriters[language] = fileWriter
+		}
+		return fileWriters
+	}
+	
+	func createFileWriters(for languages: [JSONProduct.Language], outputDirectory: URL, filePrefix: String) -> [JSONProduct.Language : FileWriter] {
+		var fileWriters = [JSONProduct.Language : FileWriter]()
+		for language in languages {
+			let fileWriter = FileWriter(name: "\(filePrefix)\(language.jsonFilenameSuffix)",
+										fileExtension: "json",
+										directory: outputDirectory)
 			fileWriters[language] = fileWriter
 		}
 		return fileWriters
@@ -182,8 +185,40 @@ class StreamReader {
 		} while true
 	}
 }
-
 class FileWriter {
+	let url: URL
+	private let stream: OutputStream
+	
+	init?(name: String, fileExtension: String, directory: URL) {
+		let url = createURL(name: name, fileExtension: fileExtension, directory: directory)
+		self.url = url
+		guard let stream = OutputStream(url: url, append: false) else {
+			return nil
+		}
+		self.stream = stream
+	}
+	
+	func writeLine(data: Data) throws {
+		let dataToWrite: Data
+		if stream.streamStatus == .notOpen {
+			stream.open()
+			dataToWrite = data
+		} else {
+			dataToWrite = .newLineData + data
+		}
+		try stream.write(data: dataToWrite)
+	}
+	
+	func finish() {
+		stream.close()
+	}
+}
+
+extension Data {
+	static let newLineData = "\n".data(using: .utf8)!
+}
+
+class ChunkedFileWriter {
 	private let name: String
 	private let directory: URL
 	private var files: [URL]
@@ -200,7 +235,7 @@ class FileWriter {
 		self.directory = directory
 		self.maxPartSize = maxPartSize
 		self.files = []
-		self.currentTargetURL = Self.createURL(name: name, fileExtension: fileExtension, directory: directory)
+		self.currentTargetURL = createURL(name: name, fileExtension: fileExtension, directory: directory)
 	}
 	
 	func writeLine(data: Data) throws {
@@ -209,11 +244,11 @@ class FileWriter {
 		if currentFilePartSize + dataToWrite.count >= self.maxPartSize {
 			try currentFileHandle?.close()
 			currentFileHandle = nil
-			var newTargetURL = Self.createURL(name: name, fileExtension: fileExtension, directory: directory, part: files.count)
+			var newTargetURL = createURL(name: name, fileExtension: fileExtension, directory: directory, part: files.count)
 			if files.isEmpty {
 				try FileManager.default.moveItem(at: currentTargetURL, to: newTargetURL)
 				currentTargetURL = newTargetURL
-				newTargetURL = Self.createURL(name: name, fileExtension: fileExtension, directory: directory, part: files.count + 1)
+				newTargetURL = createURL(name: name, fileExtension: fileExtension, directory: directory, part: files.count + 1)
 			}
 			files.append(currentTargetURL)
 			currentTargetURL = newTargetURL
@@ -238,19 +273,18 @@ class FileWriter {
 		}
 		return files
 	}
-	
-	private static func createURL(name: String, fileExtension: String, directory: URL, part: Int? = nil) -> URL {
-		let shouldAddDot = !fileExtension.hasPrefix(".")
-		let optionalDot = shouldAddDot ? "." : ""
-		let partString: String
-		if let part {
-			partString = "-\(part)"
-		} else {
-			partString = ""
-		}
-		return directory.appendingPathComponent("\(name)\(partString)\(optionalDot)\(fileExtension)")
+}
+
+func createURL(name: String, fileExtension: String, directory: URL, part: Int? = nil) -> URL {
+	let shouldAddDot = !fileExtension.hasPrefix(".")
+	let optionalDot = shouldAddDot ? "." : ""
+	let partString: String
+	if let part {
+		partString = "-\(part)"
+	} else {
+		partString = ""
 	}
-	
+	return directory.appendingPathComponent("\(name)\(partString)\(optionalDot)\(fileExtension)")
 }
 
 struct JSONProduct: Decodable {
