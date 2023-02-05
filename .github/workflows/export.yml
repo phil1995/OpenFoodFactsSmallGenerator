@@ -1,5 +1,9 @@
 name: Export
-on: push
+
+on:
+  push:
+    tags:
+      - '*'
 
 jobs:
   build:
@@ -36,12 +40,19 @@ jobs:
           df -h
           mkdir public
           swift run
-          cd public
-          ls -lh .
-      - name: Publish to Cloudflare Pages
-        uses: cloudflare/pages-action@v1
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: ${{ secrets.CLOUDFLARE_PROJECT_NAME }}
-          directory: public
+         tag_name: ${{ github.ref }}
+         release_name: Release ${{ github.ref }}
+         body: Auto generated release
+      - name: Upload assets to release
+        uses: csexton/release-asset-action@v2
+        with:
+          tag_name: ${{ github.ref }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          release-url: ${{ steps.create_release.outputs.upload_url }}
+          pattern: "public/*"
