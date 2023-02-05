@@ -1,9 +1,9 @@
 name: Export
 
 on:
-  push:
-    tags:
-      - '*'
+  schedule:
+    - cron: '0 2 * * *' # run at 2 AM UTC
+  workflow_dispatch:
 
 jobs:
   build:
@@ -49,10 +49,10 @@ jobs:
          tag_name: ${{ github.ref }}
          release_name: Release ${{ github.ref }}
          body: Auto generated release
-      - name: Upload assets to release
-        uses: csexton/release-asset-action@v2
+      - name: Update nightly release
+        uses: eine/tip@master
         with:
-          tag_name: ${{ github.ref }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          release-url: ${{ steps.create_release.outputs.upload_url }}
-          pattern: "public/*"
+          tag: nightly
+          rm: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+          files: build/libs/*.*
