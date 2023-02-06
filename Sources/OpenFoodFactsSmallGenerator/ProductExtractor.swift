@@ -1,4 +1,5 @@
 import Foundation
+import Crypto
 
 struct ProductExtractor {
 
@@ -43,9 +44,9 @@ struct ProductExtractor {
 		} while line != nil
 		var packages = [LanguagePackage]()
 		for (language, fileWriter) in fileWriters {
-			fileWriter.finish()
-			let createdFiles = [fileWriter.url]
-			let package = LanguagePackage(language: language, files: createdFiles.map(\.lastPathComponent))
+			let sha256 = fileWriter.finish()
+			let createdFiles = [JsonFile(name: fileWriter.url.lastPathComponent, sha256: sha256)]
+			let package = LanguagePackage(language: language, files: createdFiles)
 			packages.append(package)
 		}
 		do {
@@ -93,7 +94,12 @@ struct ProductExtractor {
 
 struct LanguagePackage: Codable {
 	let language: JSONProduct.Language
-	let files: [String]
+	let files: [JsonFile]
+}
+
+struct JsonFile: Codable {
+	let name: String
+	let sha256: String
 }
 
 public func customAutoreleasepool<Result>(invoking body: () throws -> Result) rethrows -> Result {
@@ -185,8 +191,14 @@ class StreamReader {
 		} while true
 	}
 }
+extension SHA256Digest {
+	var hexString: String {
+		self.map { String(format: "%02hhx", $0) }.joined()
+	}
+}
 class FileWriter {
 	let url: URL
+	private var hasher = SHA256()
 	private let stream: OutputStream
 	
 	init?(name: String, fileExtension: String, directory: URL) {
@@ -207,10 +219,12 @@ class FileWriter {
 			dataToWrite = .newLineData + data
 		}
 		try stream.write(data: dataToWrite)
+		hasher.update(data: dataToWrite)
 	}
 	
-	func finish() {
+	func finish() -> String {
 		stream.close()
+		return hasher.finalize().hexString
 	}
 }
 
