@@ -40,19 +40,10 @@ jobs:
           df -h
           mkdir public
           swift run
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-         tag_name: ${{ github.ref }}
-         release_name: Release ${{ github.ref }}
-         body: Auto generated release
       - name: Update nightly release
         uses: eine/tip@master
         with:
           tag: nightly
           rm: true
           token: ${{ secrets.GITHUB_TOKEN }}
-          files: build/libs/*.*
+          files: public/*
