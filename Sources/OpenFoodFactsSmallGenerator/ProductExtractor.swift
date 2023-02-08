@@ -46,7 +46,7 @@ struct ProductExtractor {
 		var packages = [LanguagePackage]()
 		for (language, fileWriter) in fileWriters {
 			let sha256 = fileWriter.finish()
-			let createdFiles = [JsonFile(name: fileWriter.url.lastPathComponent, sha256: sha256)]
+			let createdFiles = [JsonFile(name: fileWriter.url.lastPathComponent, source: datasource, sha256: sha256)]
 			let package = LanguagePackage(language: language, files: createdFiles)
 			packages.append(package)
 		}
@@ -100,6 +100,7 @@ struct LanguagePackage: Codable {
 
 struct JsonFile: Codable {
 	let name: String
+	let source: Datasource
 	let sha256: String
 }
 
