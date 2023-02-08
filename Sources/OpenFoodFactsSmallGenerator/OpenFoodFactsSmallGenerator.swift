@@ -5,7 +5,7 @@ public struct OpenFoodFactsSmallGenerator {
 		do {
 			try await ProductExtractor().start(source: .init(fileURLWithPath: "openfoodfacts-products.jsonl"),
 											   target: .init(fileURLWithPath: "./public"),
-											   dataSource: .openFoodFacts)
+											   datasource: .openFoodFacts)
 		} catch {
 			print("Download failed with error: \(error)")
 		}
