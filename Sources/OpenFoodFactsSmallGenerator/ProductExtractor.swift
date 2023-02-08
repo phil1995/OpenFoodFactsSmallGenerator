@@ -3,7 +3,7 @@ import Crypto
 
 struct ProductExtractor {
 
-	func start(source: URL, target: URL, languages: [JSONProduct.Language] = JSONProduct.Language.allCases, showProgress: Bool = true) async throws {
+	func start(source: URL, target: URL, dataSource: Datasource, languages: [JSONProduct.Language] = JSONProduct.Language.allCases, showProgress: Bool = true) async throws {
 		let streamReader = try StreamReader(url: source)
 		let fileWriters = createFileWriters(for: languages, outputDirectory: target, filePrefix: "small_products")
 		let decoder = JSONDecoder()
@@ -31,7 +31,8 @@ struct ProductExtractor {
 													barcode: product.barcode,
 													energy: Int(product.nutriments.energyKcal),
 													quantity: product.quantity?.rawValue,
-													serving: product.servingSize?.rawValue)
+													serving: product.servingSize?.rawValue,
+													source: dataSource)
 					let fileWriter = fileWriters[language]
 					try fileWriter?.writeLine(data: try encoder.encode(smallProduct))
 				}
