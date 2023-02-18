@@ -1,5 +1,5 @@
 import XCTest
-@testable import OpenFoodFactsSmallGenerator
+@testable import SmallProductsGenerator
 
 final class FileWriterTests: XCTestCase {
 

@@ -1,11 +1,12 @@
 import Foundation
 import Crypto
+import Core
 
-struct ProductExtractor {
+struct ProductExtractor<T: SmallProductConvertable & Decodable> {
 
-	func start(source: URL, target: URL, datasource: Datasource, languages: [JSONProduct.Language] = JSONProduct.Language.allCases, showProgress: Bool = true) async throws {
+	func start(source: URL, target: URL, datasource: Datasource, languages: [Language] = Language.allCases, showProgress: Bool = true) async throws -> [LanguagePackage] {
 		let streamReader = try StreamReader(url: source)
-		let fileWriters = createFileWriters(for: languages, outputDirectory: target, filePrefix: "small_products")
+		let fileWriters = createFileWriters(for: languages, outputDirectory: target, filePrefix: "\(datasource.filePrefix)_small_products")
 		let decoder = JSONDecoder()
 		let encoder = JSONEncoder()
 		var line: String?
@@ -18,20 +19,21 @@ struct ProductExtractor {
 					return
 				}
 				processedProductsCount += 1
-				let product: JSONProduct
+				let product: T
 				do {
-					product = try decoder.decode(JSONProduct.self, from: data)
+					product = try decoder.decode(T.self, from: data)
 				} catch {
 					return
 				}
 				extractedProductsCount += 1
-				for (language, name) in product.names where languages.contains(language) {
+				
+				for (language, name) in product.getNames() where languages.contains(language) {
 					let smallProduct = SmallProduct(name: name,
-													brand: product.brand,
-													barcode: product.barcode,
-													energy: Int(product.nutriments.energyKcal),
-													quantity: product.quantity?.rawValue,
-													serving: product.servingSize?.rawValue,
+													brand: product.getBrand(),
+													barcode: product.getId(),
+													energy: product.getEnergy(),
+													quantity: product.getQuantity(),
+													serving: product.getServing(),
 													source: datasource)
 					let fileWriter = fileWriters[language]
 					try fileWriter?.writeLine(data: try encoder.encode(smallProduct))
@@ -50,6 +52,7 @@ struct ProductExtractor {
 			let package = LanguagePackage(language: language, files: createdFiles)
 			packages.append(package)
 		}
+		return packages
 		do {
 			let data = try JSONEncoder().encode(packages)
 			try data.write(to: target.appendingPathComponent("overview.json"))
@@ -58,8 +61,8 @@ struct ProductExtractor {
 		}
 	}
 	
-	func createFileHandles(for languages: [JSONProduct.Language], outputDirectory: URL, filePrefix: String, initialContent: String = "[") throws -> [JSONProduct.Language : FileHandle] {
-		var fileHandles = [JSONProduct.Language : FileHandle]()
+	func createFileHandles(for languages: [Language], outputDirectory: URL, filePrefix: String, initialContent: String = "[") throws -> [Language : FileHandle] {
+		var fileHandles = [Language : FileHandle]()
 		for language in languages {
 			let targetURL = outputDirectory.appendingPathComponent("\(filePrefix)\(language.jsonFilenameSuffix).json")
 			try initialContent.write(to: targetURL, atomically: false, encoding: .utf8)
@@ -68,8 +71,8 @@ struct ProductExtractor {
 		return fileHandles
 	}
 	
-	func createChunkedFileWriters(for languages: [JSONProduct.Language], outputDirectory: URL, filePrefix: String) -> [JSONProduct.Language : ChunkedFileWriter] {
-		var fileWriters = [JSONProduct.Language : ChunkedFileWriter]()
+	func createChunkedFileWriters(for languages: [Language], outputDirectory: URL, filePrefix: String) -> [Language : ChunkedFileWriter] {
+		var fileWriters = [Language : ChunkedFileWriter]()
 		for language in languages {
 			let maxPartSize = 24 * 1024 * 1024 // 24 MiB
 			let fileWriter = ChunkedFileWriter(name: "\(filePrefix)\(language.jsonFilenameSuffix)",
@@ -81,8 +84,8 @@ struct ProductExtractor {
 		return fileWriters
 	}
 	
-	func createFileWriters(for languages: [JSONProduct.Language], outputDirectory: URL, filePrefix: String) -> [JSONProduct.Language : FileWriter] {
-		var fileWriters = [JSONProduct.Language : FileWriter]()
+	func createFileWriters(for languages: [Language], outputDirectory: URL, filePrefix: String) -> [Language : FileWriter] {
+		var fileWriters = [Language : FileWriter]()
 		for language in languages {
 			let fileWriter = FileWriter(name: "\(filePrefix)\(language.jsonFilenameSuffix)",
 										fileExtension: "json",
@@ -93,8 +96,30 @@ struct ProductExtractor {
 	}
 }
 
+extension Language {
+	var jsonFilenameSuffix: String {
+		switch self {
+		case .german:
+			return "_de"
+		case .english:
+			return "_en"
+		}
+	}
+}
+
+extension Datasource {
+	var filePrefix: String {
+		switch self {
+		case .openFoodFacts:
+			return "off_"
+		case .nutritionPrivacy:
+			return "np_"
+		}
+	}
+}
+
 struct LanguagePackage: Codable {
-	let language: JSONProduct.Language
+	let language: Language
 	let files: [JsonFile]
 }
 
@@ -111,38 +136,6 @@ public func customAutoreleasepool<Result>(invoking body: () throws -> Result) re
 	return try body()
 	#endif
 }
-
-struct BaseNutriments {
-	let energyKcal: Int
-	let proteins: Double
-	let fats: Double
-	let carbohydrates: Double
-}
-
-extension BaseNutriments: Decodable {
-	init(from decoder: Decoder) throws {
-		let dynamicKeyContainer = try decoder.container(keyedBy: DynamicKey.self)
-		let energyKey = try DynamicKey.generate(from: "\(Key.energy.rawValue)_100g")
-		let fatKey = try DynamicKey.generate(from: "\(Key.fat.rawValue)_100g")
-		let proteinsKey = try DynamicKey.generate(from: "\(Key.proteins.rawValue)_100g")
-		let carbohydratesKey = try DynamicKey.generate(from: "\(Key.carbohydrates.rawValue)_100g")
-		
-		energyKcal = try JSONDecoderHelper.parseJSONKeyToInt(container: dynamicKeyContainer, forKey: energyKey)
-		proteins = try JSONDecoderHelper.parseJSONKeyToDouble(container: dynamicKeyContainer, forKey: proteinsKey)
-		fats = try JSONDecoderHelper.parseJSONKeyToDouble(container: dynamicKeyContainer, forKey: fatKey)
-		carbohydrates = try JSONDecoderHelper.parseJSONKeyToDouble(container: dynamicKeyContainer, forKey: carbohydratesKey)
-	}
-}
-
-extension BaseNutriments {
-	enum Key: String {
-		case energy = "energy-kcal"
-		case fat
-		case proteins
-		case carbohydrates
-	}
-}
-
 
 class StreamReader {
 	let encoding: String.Encoding
@@ -301,103 +294,4 @@ func createURL(name: String, fileExtension: String, directory: URL, part: Int? =
 		partString = ""
 	}
 	return directory.appendingPathComponent("\(name)\(partString)\(optionalDot)\(fileExtension)")
-}
-
-struct JSONProduct: Decodable {
-	let names: [Language : String]
-	let brand: String?
-	let barcode: String
-	let nutriments: BaseNutriments
-	var quantity: Quantity?
-	var servingSize: Quantity?
-	
-	init(from decoder: Decoder) throws {
-		let container = try decoder.container(keyedBy: CodingKeys.self)
-		
-		let dynamicKeyContainer = try decoder.container(keyedBy: DynamicKey.self)
-		var names: [Language : String] = [:]
-		for language in Language.allCases {
-			guard let dynamicKey = DynamicKey(stringValue: "product_name\(language.nameKeySuffix)") else {
-				throw DynamicKeyError()
-			}
-			guard let name = try dynamicKeyContainer.decodeIfPresent(String.self, forKey: dynamicKey), !name.isEmpty else {
-				continue
-			}
-			names[language] = name
-		}
-		
-		self.names = names
-		
-		if let brandsStr = try container.decodeIfPresent(String.self, forKey: .brands) {
-			self.brand = brandsStr.components(separatedBy: ",").map { $0.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) }.first
-		} else {
-			self.brand = nil
-		}
-		
-		self.barcode = try container.decode(String.self, forKey: .barcode)
-		
-		self.nutriments = try container.decode(BaseNutriments.self, forKey: .nutriments)
-		
-		if let quantityStr = try container.decodeIfPresent(String.self, forKey: .quantity) {
-			self.quantity = Quantity(rawValue: quantityStr)
-		}
-		if let servingSizeStr = try container.decodeIfPresent(String.self, forKey: .servingSize) {
-			self.servingSize = Quantity(rawValue: servingSizeStr)
-		}
-		
-		guard quantity != nil || servingSize != nil else {
-			throw MissingUnitError()
-		}
-	}
-	
-	private static func verifyExistenceOfBaseNutriments(in dynamicKeyContainer: KeyedDecodingContainer<DynamicKey>) throws {
-		let fatKey = try DynamicKey.generate(from: "\(BaseNutrimentsKey.fat)_100g")
-		let proteinsKey = try DynamicKey.generate(from: "\(BaseNutrimentsKey.proteins)_100g")
-		let carbohydratesKey = try DynamicKey.generate(from: "\(BaseNutrimentsKey.carbohydrates)_100g")
-		
-		_ = try JSONDecoderHelper.parseJSONKeyToDouble(container: dynamicKeyContainer, forKey: proteinsKey)
-		_ = try JSONDecoderHelper.parseJSONKeyToDouble(container: dynamicKeyContainer, forKey: fatKey)
-		_ = try JSONDecoderHelper.parseJSONKeyToDouble(container: dynamicKeyContainer, forKey: carbohydratesKey)
-	}
-	
-	
-	enum CodingKeys: String, CodingKey {
-		case names = "product_name"
-		case brands
-		case languageCodes = "languages_codes"
-		case barcode = "code"
-		case nutriments
-		case servingSize = "serving_size"
-		case quantity
-	}
-	
-	enum BaseNutrimentsKey: String {
-		case energy = "energy-kcal"
-		case fat
-		case proteins
-		case carbohydrates
-	}
-	
-	enum Language: String, CaseIterable, Codable {
-		case english
-		case german
-		
-		var nameKeySuffix: String {
-			switch self {
-			case .german:
-				return "_de"
-			case .english:
-				return ""
-			}
-		}
-		
-		var jsonFilenameSuffix: String {
-			switch self {
-			case .german:
-				return "_de"
-			case .english:
-				return "_en"
-			}
-		}
-	}
 }

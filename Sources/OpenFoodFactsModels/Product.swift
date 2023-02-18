@@ -1,24 +1,30 @@
+import Core
 import Foundation
 
-struct Product: Decodable {
-	let name: String
+public struct Product: Decodable {
+	let names: [Language : String]
 	let brand: String?
 	let barcode: String
-	let energyKcal: Double
+	let nutriments: BaseNutriments
 	var quantity: Quantity?
 	var servingSize: Quantity?
 	
-	init(from decoder: Decoder) throws {
+	public init(from decoder: Decoder) throws {
 		let container = try decoder.container(keyedBy: CodingKeys.self)
-		guard let dynamicKey = DynamicKey(stringValue: "product_name") else {
-			throw DynamicKeyError()
-		}
+		
 		let dynamicKeyContainer = try decoder.container(keyedBy: DynamicKey.self)
-		guard let name = try dynamicKeyContainer.decodeIfPresent(String.self, forKey: dynamicKey), !name.isEmpty else {
-			throw MissingNameError()
+		var names: [Language : String] = [:]
+		for language in Language.allCases {
+			guard let dynamicKey = DynamicKey(stringValue: "product_name\(language.nameKeySuffix)") else {
+				throw ProductDecodingError.dynamicKeyFailed
+			}
+			guard let name = try dynamicKeyContainer.decodeIfPresent(String.self, forKey: dynamicKey), !name.isEmpty else {
+				continue
+			}
+			names[language] = name
 		}
-		self.name = name
-		self.barcode = try container.decode(String.self, forKey: .barcode)
+		
+		self.names = names
 		
 		if let brandsStr = try container.decodeIfPresent(String.self, forKey: .brands) {
 			self.brand = brandsStr.components(separatedBy: ",").map { $0.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) }.first
@@ -26,11 +32,9 @@ struct Product: Decodable {
 			self.brand = nil
 		}
 		
-		let energyKey = try DynamicKey.generate(from: "\(BaseNutrimentsKey.energy)_100g")
+		self.barcode = try container.decode(String.self, forKey: .barcode)
 		
-		self.energyKcal = try JSONDecoderHelper.parseJSONKeyToDouble(container: dynamicKeyContainer, forKey: energyKey)
-		
-		try Self.verifyExistenceOfBaseNutriments(in: dynamicKeyContainer)
+		self.nutriments = try container.decode(BaseNutriments.self, forKey: .nutriments)
 		
 		if let quantityStr = try container.decodeIfPresent(String.self, forKey: .quantity) {
 			self.quantity = Quantity(rawValue: quantityStr)
@@ -40,7 +44,7 @@ struct Product: Decodable {
 		}
 		
 		guard quantity != nil || servingSize != nil else {
-			throw MissingUnitError()
+			throw ProductDecodingError.missingUnit
 		}
 	}
 	
@@ -70,5 +74,42 @@ struct Product: Decodable {
 		case fat
 		case proteins
 		case carbohydrates
+	}
+}
+
+extension Language {
+	var nameKeySuffix: String {
+		switch self {
+		case .german:
+			return "_de"
+		case .english:
+			return ""
+		}
+	}
+}
+
+extension Product: SmallProductConvertable {
+	public func getNames() -> [Core.Language : String] {
+		names
+	}
+	
+	public func getBrand() -> String? {
+		brand
+	}
+	
+	public func getId() -> String {
+		barcode
+	}
+	
+	public func getEnergy() -> Int {
+		nutriments.energyKcal
+	}
+	
+	public func getQuantity() -> String? {
+		quantity?.rawValue
+	}
+	
+	public func getServing() -> String? {
+		servingSize?.rawValue
 	}
 }

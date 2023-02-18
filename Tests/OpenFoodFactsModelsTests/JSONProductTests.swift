@@ -1,5 +1,5 @@
 import XCTest
-@testable import OpenFoodFactsSmallGenerator
+@testable import OpenFoodFactsModels
 
 final class JSONProductTests: XCTestCase {
 
@@ -10,7 +10,7 @@ final class JSONProductTests: XCTestCase {
 		
 		// WHEN
 		// The data gets decoded to a JSONProduct
-		let product = try JSONDecoder().decode(JSONProduct.self, from: data)
+		let product = try JSONDecoder().decode(Product.self, from: data)
 		
 		// THEN
 		// All expected values have been set

@@ -13,7 +13,7 @@ public struct DynamicKey: CodingKey {
 	
 	public static func generate(from stringValue: String) throws -> DynamicKey {
 		guard let dynamicKey = DynamicKey(stringValue: stringValue) else {
-			throw DynamicKeyError()
+			throw ProductDecodingError.dynamicKeyFailed
 		}
 		return dynamicKey
 	}

@@ -4,7 +4,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "OpenFoodFactsSmallGenerator",
+    name: "SmallProductsGenerator",
 	platforms: [.macOS(.v10_15)],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
@@ -15,13 +15,31 @@ let package = Package(
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
         // Targets can depend on other targets in this package, and on products in packages this package depends on.
         .executableTarget(
-            name: "OpenFoodFactsSmallGenerator",
-			dependencies: [.product(name: "Crypto", package: "swift-crypto")]
+            name: "SmallProductsGenerator",
+			dependencies: [
+				.product(name: "Crypto", package: "swift-crypto"),
+				.target(name: "NutritionPrivacyModels"),
+				.target(name: "OpenFoodFactsModels"),
+				.target(name: "Core")
+			]
 		),
         .testTarget(
-            name: "OpenFoodFactsSmallGeneratorTests",
-            dependencies: ["OpenFoodFactsSmallGenerator"],
+            name: "SmallProductsGeneratorTests",
+            dependencies: ["SmallProductsGenerator"]
+		),
+		.target(
+			name: "NutritionPrivacyModels",
+			dependencies: ["Core"]
+		),
+		.target(
+			name: "OpenFoodFactsModels",
+			dependencies: ["Core"]
+		),
+		.testTarget(
+			name: "OpenFoodFactsModelsTests",
+			dependencies: ["OpenFoodFactsModels"],
 			resources: [.process("Resources")]
 		),
+		.target(name: "Core")
     ]
 )
