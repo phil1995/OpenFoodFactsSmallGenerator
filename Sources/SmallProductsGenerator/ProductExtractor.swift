@@ -53,12 +53,6 @@ struct ProductExtractor<T: SmallProductConvertable & Decodable> {
 			packages.append(package)
 		}
 		return packages
-		do {
-			let data = try JSONEncoder().encode(packages)
-			try data.write(to: target.appendingPathComponent("overview.json"))
-		} catch {
-			print("Overview creation failed with error: \(error)")
-		}
 	}
 	
 	func createFileHandles(for languages: [Language], outputDirectory: URL, filePrefix: String, initialContent: String = "[") throws -> [Language : FileHandle] {
