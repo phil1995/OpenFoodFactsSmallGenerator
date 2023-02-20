@@ -6,7 +6,7 @@ struct ProductExtractor<T: SmallProductConvertable & Decodable> {
 
 	func start(source: URL, target: URL, datasource: Datasource, languages: [Language] = Language.allCases, showProgress: Bool = true) async throws -> [LanguagePackage] {
 		let streamReader = try StreamReader(url: source)
-		let fileWriters = createFileWriters(for: languages, outputDirectory: target, filePrefix: "\(datasource.filePrefix)_small_products")
+		let fileWriters = createFileWriters(for: languages, outputDirectory: target, filePrefix: "\(datasource.filePrefix)small_products")
 		let decoder = JSONDecoder()
 		let encoder = JSONEncoder()
 		var line: String?
