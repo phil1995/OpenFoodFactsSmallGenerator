@@ -34,7 +34,7 @@ jobs:
       - name: Download JSONL files
         run: |
           wget -nc https://static.openfoodfacts.org/data/openfoodfacts-products.jsonl.gz 2>/tmp/err.log || cat /tmp/err.log; rm /tmp/err.log
-          wget https://dev.nutritionprivacy.de/api/productPreviews -O nutritionprivacy-products.jsonl || rm nutritionprivacy-products.jsonl
+          wget https://api.nutritionprivacy.de/api/productPreviews -O nutritionprivacy-products.jsonl || rm nutritionprivacy-products.jsonl
       - name: Unpack
         run: gunzip openfoodfacts-products.jsonl.gz
       - name: Create Small Product JSON files
