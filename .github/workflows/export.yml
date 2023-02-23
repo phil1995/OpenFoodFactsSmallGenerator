@@ -29,12 +29,11 @@ jobs:
         with:
           path: |
             sha256sum
-            openfoodfacts-products.jsonl.gz
+			openfoodfacts-products.jsonl.gz
           key: ${{ runner.os }}-${{ steps.get-checksum.outputs.sha256sum }}
       - name: Download JSONL files
         run: |
-          wget -nc https://static.openfoodfacts.org/data/openfoodfacts-products.jsonl.gz 2>/tmp/err.log || cat /tmp/err.log; rm /tmp/err.log
-          wget https://api.nutritionprivacy.de/api/productPreviews -O nutritionprivacy-products.jsonl || rm nutritionprivacy-products.jsonl
+          swift run ProductDownloader
       - name: Unpack
         run: gunzip openfoodfacts-products.jsonl.gz
       - name: Create Small Product JSON files
@@ -42,7 +41,7 @@ jobs:
           echo "Free space:"
           df -h
           mkdir public
-          swift run
+          swift run SmallProductsGenerator
       - name: Update nightly release
         uses: eine/tip@master
         with:
