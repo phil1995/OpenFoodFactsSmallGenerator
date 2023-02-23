@@ -27,11 +27,8 @@ public struct App {
 			print("Found cached file: \(localURL.path)")
 			return
 		}
-		var configuration = URLSessionConfiguration.default
-		configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-		let session = URLSession(configuration: configuration)
 		do {
-			let (url, response) = try await session.download(from: downloadURL)
+			let (url, response) = try await URLSession.shared.downloadFile(from: downloadURL)
 			guard (response as? HTTPURLResponse)?.statusCode == 200 else {
 				print("Download from \(downloadURL) failed with response: \(response)")
 				throw URLError(.badServerResponse)
@@ -40,6 +37,32 @@ public struct App {
 		} catch {
 			print("Download from \(downloadURL) failed with error: \(error)")
 			throw error
+		}
+	}
+}
+
+// use custom async implementation since FoundationNetworking has it not yet implemented
+extension URLSession {
+	func downloadFile(from url: URL) async throws -> (URL, URLResponse) {
+		try await withCheckedThrowingContinuation { continuation in
+			let task = downloadTask(with: .init(url: url)) { url, response, error in
+				if let error {
+					continuation.resume(throwing: error)
+					return
+				}
+				guard let url, let response else {
+					continuation.resume(throwing: URLError(.unknown))
+					return
+				}
+				do {
+					let tempFilePath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+					try FileManager.default.moveItem(at: url, to: tempFilePath)
+					continuation.resume(returning: (tempFilePath, response))
+				} catch {
+					continuation.resume(throwing: error)
+				}
+			}
+			task.resume()
 		}
 	}
 }
