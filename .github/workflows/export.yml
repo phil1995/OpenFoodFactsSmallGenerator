@@ -32,7 +32,7 @@ jobs:
             openfoodfacts-products.jsonl.gz
           key: ${{ runner.os }}-${{ steps.get-checksum.outputs.sha256sum }}
       - name: Download JSONL files
-        run: swift run ProductDownloader
+        run: swift run ProductsDownloader
       - name: Unpack
         run: gunzip openfoodfacts-products.jsonl.gz
       - name: Create Small Product JSON files
