@@ -42,4 +42,4 @@ jobs:
           mkdir public
           swift run SmallProductsGenerator
       - name: Update nightly release
-		run: gh release upload nightly public/* --clobber
+        run: gh release upload nightly public/* --clobber
