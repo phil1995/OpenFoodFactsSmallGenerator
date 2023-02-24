@@ -45,3 +45,5 @@ jobs:
           swift run SmallProductsGenerator
       - name: Update nightly release
         run: gh release upload nightly public/* --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
